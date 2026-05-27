@@ -14,7 +14,7 @@ info_schermo = pygame.display.Info()
 WIDTH = info_schermo.current_w
 HEIGHT = info_schermo.current_h
 
-# Il gioco gira a schermo intero adattandosi al tuo PC
+# Schermo intero adattivo
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("The Pygame Triathlon Edition")
 
@@ -35,7 +35,7 @@ ROSSO = (220, 60, 60)
 BLU = (70, 120, 255)
 ARANCIO = (200, 100, 0)
 
-# Font proporzionati alla risoluzione
+# Font proporzionati alla risoluzione dello schermo
 font_piccolo = pygame.font.Font(None, int(HEIGHT * 0.035))
 font_medio = pygame.font.Font(None, int(HEIGHT * 0.045))
 font_grande = pygame.font.Font(None, int(HEIGHT * 0.09))
@@ -47,7 +47,8 @@ FILE_SALVATAGGIO = "classifica_triathlon.txt"
 record_triathlon = {
     "FORZA": {"FACILE": 0, "MEDIO": 0, "PAZZO": 0},
     "VELOCITA": {"FACILE": 0, "MEDIO": 0, "PAZZO": 0},
-    "QUIZ": 0
+    "QUIZ": 0,
+    "BEST_TOTALE_TRIATHLON": 0  
 }
 
 def carica_punteggi():
@@ -55,7 +56,10 @@ def carica_punteggi():
     if os.path.exists(FILE_SALVATAGGIO):
         try:
             with open(FILE_SALVATAGGIO, "r") as f:
-                record_triathlon = json.load(f)
+                dati = json.load(f)
+                for chiave in dati:
+                    if chiave in record_triathlon:
+                        record_triathlon[chiave] = dati[chiave]
         except Exception:
             pass
 
@@ -104,7 +108,7 @@ def draw_text(text, font_used, color, x, y):
     render = font_used.render(text, True, color)
     screen.blit(render, (x, y))
 
-# Schermata Selezione Difficoltà (Per Prova 1 e Prova 2)
+# Selezione Difficoltà
 def seleziona_difficolta(nome_prova):
     while True:
         screen.fill(NERO)
@@ -149,9 +153,9 @@ def mostra_risultati_intermedi(titolo, punti, record_attuale, testo_bottone):
         screen.fill(NERO)
         draw_text_centered(titolo, font_grande, GIALLO, HEIGHT // 5)
         draw_text_centered(f"Punteggio ottenuto in questa prova: {punti} PT", font_medio, BIANCO, HEIGHT // 2 - 40)
-        draw_text_centered(f"Record Attuale: {record_attuale} PT", font_medio, VERDE, HEIGHT // 2 + 20)
+        draw_text_centered(f"Record Attuale per questa difficoltà: {record_attuale} PT", font_medio, VERDE, HEIGHT // 2 + 20)
         
-        btn_w, btn_h = 450, 60
+        btn_w, btn_h = 600, 65  
         rect_btn = pygame.Rect(WIDTH // 2 - btn_w // 2, HEIGHT - 200, btn_w, btn_h)
         
         m_pos = pygame.mouse.get_pos()
@@ -159,7 +163,7 @@ def mostra_risultati_intermedi(titolo, punti, record_attuale, testo_bottone):
         pygame.draw.rect(screen, BIANCO, rect_btn, 2)
         
         txt_btn = font_medio.render(testo_bottone, True, BIANCO)
-        screen.blit(txt_btn, (rect_btn.x + (btn_w // 2 - txt_btn.get_width() // 2), rect_btn.y + 15))
+        screen.blit(txt_btn, (rect_btn.x + (btn_w // 2 - txt_btn.get_width() // 2), rect_btn.y + 17))
         
         pygame.display.flip()
         for event in pygame.event.get():
@@ -170,13 +174,14 @@ def mostra_risultati_intermedi(titolo, punti, record_attuale, testo_bottone):
                     return
 
 # -------------------------
-# PROVA 1: GIOCO DELLA FORZA (gioco.py)
+# PROVA 1: GIOCO DELLA FORZA
 # -------------------------
 def esegui_prova_forza(difficolta):
     if difficolta == "FACILE":
         attesa_min, attesa_max, moltiplicatore = 15, 25, 1
     elif difficolta == "MEDIO":
-        attesa_min, attesa_max, moltiplicatore = 8, 14, 2
+        # MODIFICA: Ancora poco più difficile (bot attacca più rapidamente, intervallo 6-10 frame)
+        attesa_min, attesa_max, moltiplicatore = 6, 10, 2
     else:
         attesa_min, attesa_max, moltiplicatore = 2, 8, 3
 
@@ -191,24 +196,46 @@ def esegui_prova_forza(difficolta):
     max_pos_x = punto_centrale
     punteggio = 0
     
+    game_started = False
+    countdown_start = pygame.time.get_ticks()
+
     running = True
     while running:
         screen.fill(NERO)
-        frame_partita += 1
-        if pos_x > max_pos_x: max_pos_x = pos_x
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                pos_x += forza_giocatore
-                
+                if game_started:
+                    pos_x += forza_giocatore
+        
+        if not game_started:
+            elapsed = (pygame.time.get_ticks() - countdown_start) / 1000
+            remaining = 3 - int(elapsed)
+            
+            pygame.draw.line(screen, GRIGIO_LUCE, (0, linea_terra), (WIDTH, linea_terra), 5)
+            pygame.draw.rect(screen, VERDE, (pos_x - dim_pg, linea_terra - dim_pg, dim_pg, dim_pg))
+            pygame.draw.rect(screen, ROSSO, (pos_x, linea_terra - dim_pg, dim_pg, dim_pg))
+            draw_text_centered("PROVA 1: SCONTRO DI FORZA", font_medio, BLU, 50)
+            
+            txt_cd = str(remaining) if remaining > 0 else "VIA!"
+            draw_text_centered(txt_cd, font_grande, BIANCO, HEIGHT // 3)
+            
+            if elapsed >= 3:
+                game_started = True
+            pygame.display.flip()
+            clock.tick(FPS)
+            continue
+
+        frame_partita += 1
+        if pos_x > max_pos_x: max_pos_x = pos_x
+        
         if attesa_bot > 0:
             attesa_bot -= 1
         else:
             pos_x -= forza_bot
             attesa_bot = random.randint(attesa_min, attesa_max)
             
-        # Controllo Fine Gioco
         if pos_x >= WIDTH:
             punteggio = int(max(100, 1500 - frame_partita) * moltiplicatore)
             running = False
@@ -216,7 +243,6 @@ def esegui_prova_forza(difficolta):
             punteggio = int((max_pos_x / WIDTH) * 300 * moltiplicatore)
             running = False
             
-        # Grafica Prova 1
         draw_text_centered("PROVA 1: SCONTRO DI FORZA", font_medio, BLU, 50)
         draw_text_centered("Premi SPAZIO velocemente per spingere!", font_piccolo, BIANCO, 110)
         pygame.draw.line(screen, GRIGIO_LUCE, (0, linea_terra), (WIDTH, linea_terra), 5)
@@ -232,21 +258,27 @@ def esegui_prova_forza(difficolta):
     return punteggio
 
 # -------------------------
-# PROVA 2: GIOCO DELLA VELOCITÀ (velocità.py)
+# PROVA 2: GIOCO DELLA VELOCITÀ (Aggiornato Bilanciamento)
 # -------------------------
 def esegui_prova_velocita(difficolta):
-    # Adattamento difficoltà personalizzato per la velocità della freccia e i riflessi del Bot
     if difficolta == "FACILE":
         arrow_speed = 5.0
         prob_v, prob_g = 0.65, 0.70
+        bot_green_speed, bot_yellow_speed = 3.2, 1.8
+        player_fail_speed = 0.3
         moltiplicatore = 1
     elif difficolta == "MEDIO":
-        arrow_speed = 7.5
-        prob_v, prob_g = 0.78, 0.83
+        # MODIFICA: Ancora poco più difficile (freccia alzata da 9.5 a 11.0, precisione bot incrementata)
+        arrow_speed = 11.0  
+        prob_v, prob_g = 0.86, 0.90  
+        bot_green_speed, bot_yellow_speed = 3.2, 2.3
+        player_fail_speed = 0.3
         moltiplicatore = 2
     else:
-        arrow_speed = 11.0
-        prob_v, prob_g = 0.88, 0.92
+        arrow_speed = 14.5  
+        prob_v, prob_g = 0.97, 0.98  
+        bot_green_speed, bot_yellow_speed = 5.2, 2.8
+        player_fail_speed = 0.1  
         moltiplicatore = 3
 
     TRACK_Y = HEIGHT // 3
@@ -282,7 +314,7 @@ def esegui_prova_velocita(difficolta):
                 arrow_rect = pygame.Rect(arrow_x - 5, BAR_Y - 5, 10, BAR_HEIGHT + 10)
                 if green_zone.colliderect(arrow_rect): players[0]["speed"] = 3.2
                 elif yellow_zone_left.colliderect(arrow_rect) or yellow_zone_right.colliderect(arrow_rect): players[0]["speed"] = 1.8
-                else: players[0]["speed"] = 0.3
+                else: players[0]["speed"] = player_fail_speed
 
         if not game_started:
             elapsed = (pygame.time.get_ticks() - countdown_start) / 1000
@@ -301,16 +333,16 @@ def esegui_prova_velocita(difficolta):
             arrow_rect = pygame.Rect(arrow_x - 5, BAR_Y - 5, 10, BAR_HEIGHT + 10)
             if not players[1]["finished"]:
                 distacco = pos_leader - players[1]["x"]
-                bonus = min(0.20, distacco * 0.001) if distacco > 50 else 0.0
+                bonus = min(0.15, distacco * 0.001) if distacco > 50 else 0.0
                 r = random.random()
-                if green_zone.colliderect(arrow_rect) and r < (players[1]["prob_verde"] + bonus): players[1]["speed"] = 4.2
-                elif (yellow_zone_left.colliderect(arrow_rect) or yellow_zone_right.colliderect(arrow_rect)) and r < (players[1]["prob_giallo"] + bonus): players[1]["speed"] = 2.3
+                if green_zone.colliderect(arrow_rect) and r < (players[1]["prob_verde"] + bonus): players[1]["speed"] = bot_green_speed
+                elif (yellow_zone_left.colliderect(arrow_rect) or yellow_zone_right.colliderect(arrow_rect)) and r < (players[1]["prob_giallo"] + bonus): players[1]["speed"] = bot_yellow_speed
                 players[1]["x"] += players[1]["speed"]
                 
             # Logica Giocatore
             if not players[0]["finished"]: players[0]["x"] += players[0]["speed"]
             
-            # Arrivi
+            # Arrivi al traguardo
             for i, p in enumerate(players):
                 if not p["finished"] and p["x"] >= FINISH_X - 20:
                     p["finished"] = True
@@ -330,7 +362,7 @@ def esegui_prova_velocita(difficolta):
         pygame.display.flip()
         clock.tick(FPS)
 
-    # Calcolo punteggio finale in base alle performance
+    # Calcolo stabile del punteggio
     if players[0]["place"] == 1:
         punteggio = int(max(200, 2000 - frame_cronometro) * moltiplicatore)
     else:
@@ -342,7 +374,7 @@ def esegui_prova_velocita(difficolta):
     return punteggio
 
 # -------------------------
-# PROVA 3: MEGA QUIZ (quiz.py)
+# PROVA 3: MEGA QUIZ
 # -------------------------
 def esegui_prova_quiz():
     MAX_QUESTIONS = 9
@@ -399,7 +431,6 @@ def esegui_prova_quiz():
             clock.tick(FPS)
 
     total_time = int(time.time() - start_time)
-    # Calcolo Punteggio Dinamico del Quiz: più risposte corrette e minor tempo = più punti!
     tempo_bonus = max(0, TIME_LIMIT - total_time)
     punteggio_finale = (score * 200) + (tempo_bonus * 10)
 
@@ -416,25 +447,28 @@ def mostra_schermata_classifiche():
         screen.fill(NERO)
         draw_text_centered("MIGLIORI RECORD TRIATHLON", font_grande, GIALLO, 50)
         
-        # Colonne e Righe organizzate pulite
-        y_offset = HEIGHT // 4 + 20
-        draw_text("PROVA 1 (FORZA):", font_medio, BLU, WIDTH // 4, y_offset)
-        draw_text(f"Facile: {record_triathlon['FORZA']['FACILE']} PT | Medio: {record_triathlon['FORZA']['MEDIO']} PT | Pazzo: {record_triathlon['FORZA']['PAZZO']} PT", font_piccolo, BIANCO, WIDTH // 4, y_offset + 40)
+        y_offset = HEIGHT // 4
         
-        draw_text("PROVA 2 (VELOCITÀ):", font_medio, BLU, WIDTH // 4, y_offset + 120)
-        draw_text(f"Facile: {record_triathlon['VELOCITA']['FACILE']} PT | Medio: {record_triathlon['VELOCITA']['MEDIO']} PT | Pazzo: {record_triathlon['VELOCITA']['PAZZO']} PT", font_piccolo, BIANCO, WIDTH // 4, y_offset + 160)
+        draw_text("RECORD ASSOLUTO TRIATHLON (SESSIONE SINGOLA):", font_medio, ARANCIO, WIDTH // 4, y_offset)
+        draw_text(f"{record_triathlon.get('BEST_TOTALE_TRIATHLON', 0)} PUNTI COMPLESSIVI", font_medio, VERDE, WIDTH // 4, y_offset + 40)
         
-        draw_text("PROVA 3 (MEGA QUIZ):", font_medio, BLU, WIDTH // 4, y_offset + 240)
-        draw_text(f"Record Assoluto: {record_triathlon['QUIZ']} PT", font_piccolo, VERDE, WIDTH // 4, y_offset + 280)
+        draw_text("PROVA 1 (FORZA):", font_medio, BLU, WIDTH // 4, y_offset + 120)
+        draw_text(f"Facile: {record_triathlon['FORZA']['FACILE']} PT | Medio: {record_triathlon['FORZA']['MEDIO']} PT | Pazzo: {record_triathlon['FORZA']['PAZZO']} PT", font_piccolo, BIANCO, WIDTH // 4, y_offset + 160)
         
-        btn_w, btn_h = 300, 50
-        rect_back = pygame.Rect(WIDTH // 2 - btn_w // 2, HEIGHT - 150, btn_w, btn_h)
+        draw_text("PROVA 2 (VELOCITÀ):", font_medio, BLU, WIDTH // 4, y_offset + 240)
+        draw_text(f"Facile: {record_triathlon['VELOCITA']['FACILE']} PT | Medio: {record_triathlon['VELOCITA']['MEDIO']} PT | Pazzo: {record_triathlon['VELOCITA']['PAZZO']} PT", font_piccolo, BIANCO, WIDTH // 4, y_offset + 280)
+        
+        draw_text("PROVA 3 (MEGA QUIZ):", font_medio, BLU, WIDTH // 4, y_offset + 360)
+        draw_text(f"Record Assoluto Quiz: {record_triathlon['QUIZ']} PT", font_piccolo, BIANCO, WIDTH // 4, y_offset + 400)
+        
+        btn_w, btn_h = 350, 55
+        rect_back = pygame.Rect(WIDTH // 2 - btn_w // 2, HEIGHT - 120, btn_w, btn_h)
         m_pos = pygame.mouse.get_pos()
         
         pygame.draw.rect(screen, ROSSO if rect_back.collidepoint(m_pos) else GRIGIO_SCURO, rect_back)
         pygame.draw.rect(screen, BIANCO, rect_back, 2)
         txt_back = font_medio.render("TORNA AL MENU", True, BIANCO)
-        screen.blit(txt_back, (rect_back.x + (btn_w // 2 - txt_back.get_width() // 2), rect_back.y + 12))
+        screen.blit(txt_back, (rect_back.x + (btn_w // 2 - txt_back.get_width() // 2), rect_back.y + 13))
         
         pygame.display.flip()
         for event in pygame.event.get():
@@ -443,14 +477,14 @@ def mostra_schermata_classifiche():
                 if rect_back.collidepoint(event.pos): return
 
 # -------------------------
-# STREAM PRINCIPALE DEL MENU
+# MENU PRINCIPALE
 # -------------------------
 def menu_principale():
     while True:
         screen.fill(NERO)
-        draw_text_centered("THE PYGAME TRIATHLON", font_grande, BIANCO, HEIGHT // 4)
+        draw_text_centered("Triathlon", font_grande, BIANCO, HEIGHT // 4)
         
-        btn_w, btn_h = 450, 60
+        btn_w, btn_h = 480, 60  
         btn_x = WIDTH // 2 - btn_w // 2
         
         rect_start = pygame.Rect(btn_x, HEIGHT // 2, btn_w, btn_h)
@@ -476,17 +510,12 @@ def menu_principale():
         pygame.display.flip()
         
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if rect_start.collidepoint(event.pos):
-                    esegui_flusso_triathlon()
-                if rect_scores.collidepoint(event.pos):
-                    mostra_schermata_classifiche()
-                if rect_exit.collidepoint(event.pos):
-                    pygame.quit(); sys.exit()
+                if rect_start.collidepoint(event.pos): esegui_flusso_triathlon()
+                if rect_scores.collidepoint(event.pos): mostra_schermata_classifiche()
+                if rect_exit.collidepoint(event.pos): pygame.quit(); sys.exit()
 
 # -------------------------
 # FLUSSO SEQUENZIALE DELLE PROVE
@@ -505,7 +534,14 @@ def esegui_flusso_triathlon():
     # --- PROVA 3 ---
     risposte_esatte, tempo, punti_quiz = esegui_prova_quiz()
     
-    # Schermata Finale Completa del Triathlon
+    punteggio_totale_triathlon = punti_forza + punti_vel + punti_quiz
+    
+    # Controllo e aggiornamento dinamico del record complessivo
+    if punteggio_totale_triathlon > record_triathlon.get("BEST_TOTALE_TRIATHLON", 0):
+        record_triathlon["BEST_TOTALE_TRIATHLON"] = punteggio_totale_triathlon
+        salva_punteggi()
+    
+    # Schermata Finale
     while True:
         screen.fill(NERO)
         draw_text_centered("TRIATHLON CONCLUSO!", font_grande, VERDE, 60)
@@ -515,10 +551,9 @@ def esegui_flusso_triathlon():
         draw_text_centered(f"2° Prova (Velocità - {diff_vel}): {punti_vel} PT", font_medio, BIANCO, y_res + 50)
         draw_text_centered(f"3° Prova (Quiz - Risposte {risposte_esatte}/9 in {tempo}s): {punti_quiz} PT", font_medio, BIANCO, y_res + 100)
         
-        punteggio_totale_triathlon = punti_forza + punti_vel + punti_quiz
         draw_text_centered(f"PUNTEGGIO TOTALE TRIATHLON: {punteggio_totale_triathlon} PT", font_medio, GIALLO, y_res + 200)
         
-        btn_w, btn_h = 400, 60
+        btn_w, btn_h = 550, 60  
         rect_back_menu = pygame.Rect(WIDTH // 2 - btn_w // 2, HEIGHT - 180, btn_w, btn_h)
         m_pos = pygame.mouse.get_pos()
         
@@ -531,9 +566,7 @@ def esegui_flusso_triathlon():
         for event in pygame.event.get():
             if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if rect_back_menu.collidepoint(event.pos):
-                    return
+                if rect_back_menu.collidepoint(event.pos): return
 
-# Avvio del Gioco
 if __name__ == "__main__":
     menu_principale()
