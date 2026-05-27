@@ -26,7 +26,6 @@ font_piccolo = pygame.font.Font(None, 30)
 
 # Variabili di gioco originali
 clock = pygame.time.Clock()
-# Nuovi stati aggiunti: "PUNTEGGI" per la schermata dei record
 stato = "MENU"  
 
 punto_centrale = LARGHEZZA // 2
@@ -41,7 +40,7 @@ attesa_bot = 0
 attesa_min = 10
 attesa_max = 20
 
-# --- NUOVE VARIABILI E GESTIONE FILE PER I PUNTEGGI ---
+# --- VARIABILI E GESTIONE FILE PER I PUNTEGGI ---
 difficolta_corrente = "FACILE"
 moltiplicatore = 1
 frame_partita = 0
@@ -52,20 +51,22 @@ punteggio_ottenuto = 0
 punteggi_record = {"FACILE": 0, "MEDIO": 0, "PAZZO": 0}
 FILE_SALVATAGGIO = "classifica.txt"
 
+# Rettangolo del nuovo pulsante di reset a fine partita
+rect_torna_menu_fine = pygame.Rect(250, 400, 300, 50)
+
 def carica_punteggi():
     """Legge i record dal file di testo se esiste."""
     if os.path.exists(FILE_SALVATAGGIO):
         try:
             with open(FILE_SALVATAGGIO, "r") as f:
                 for linea in f:
-                    # Rimuove spazi e divide per il carattere ':'
                     parti = linea.strip().split(":")
                     if len(parti) == 2:
                         diff, punti = parti[0], parti[1]
                         if diff in punteggi_record:
                             punteggi_record[diff] = int(punti)
         except Exception:
-            pass # Se il file è corrotto o vuoto, tiene i record a 0
+            pass 
 
 def salva_punteggi():
     """Scrive i record attuali nel file di testo."""
@@ -83,7 +84,7 @@ carica_punteggi()
 while True:
     schermo.fill(NERO) 
     
-    # 1. GESTIONE EVENTI (Invariata + click tasto punteggi)
+    # 1. GESTIONE EVENTI
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
             pygame.quit()
@@ -95,7 +96,7 @@ while True:
             if stato == "MENU":
                 if 250 <= x_mouse <= 550:
                     if 200 <= y_mouse <= 250:
-                        attesa_min, attesa_max = 15, 25 # FACILE
+                        attesa_min, attesa_max = 15, 25 
                         difficolta_corrente = "FACILE"
                         moltiplicatore = 1
                         stato = "GIOCO"
@@ -103,7 +104,7 @@ while True:
                         frame_partita = 0
                         max_pos_x = punto_centrale
                     elif 300 <= y_mouse <= 350:
-                        attesa_min, attesa_max = 8, 14  # MEDIO
+                        attesa_min, attesa_max = 8, 14  
                         difficolta_corrente = "MEDIO"
                         moltiplicatore = 2
                         stato = "GIOCO"
@@ -111,31 +112,33 @@ while True:
                         frame_partita = 0
                         max_pos_x = punto_centrale
                     elif 400 <= y_mouse <= 450:
-                        attesa_min, attesa_max = 2, 8   # PAZZO
+                        attesa_min, attesa_max = 2, 8   # RIGA 99 INVARIATA
                         difficolta_corrente = "PAZZO"
                         moltiplicatore = 3
                         stato = "GIOCO"
                         pos_x = punto_centrale
                         frame_partita = 0
                         max_pos_x = punto_centrale
-                    # Click sul nuovo pulsante VEDI PUNTEGGI
                     elif 250 <= y_mouse <= 550:  
                         if 490 <= y_mouse <= 540:
                             stato = "PUNTEGGI"
                             
             elif stato == "PUNTEGGI":
-                # Bottone per tornare al menu principale dalla schermata punteggi
                 if 250 <= x_mouse <= 550 and 460 <= y_mouse <= 510:
+                    stato = "MENU"
+            
+            # Controllo del click sul nuovo pulsante a fine partita
+            elif stato in ["FINE_VITTORIA", "FINE_SCONFITTA"]:
+                if rect_torna_menu_fine.collidepoint((x_mouse, y_mouse)):
                     stato = "MENU"
                     
         if evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_SPACE:
                 if stato == "GIOCO":
                     pos_x += forza_giocatore 
-                elif stato in ["FINE_VITTORIA", "FINE_SCONFITTA"]:
-                    stato = "MENU" 
+                # Rimosso il ritorno al menu con la barra spaziatrice
 
-    # 2. LOGICA DEL GIOCO (Invariata + calcolo punteggio a fine partita)
+    # 2. LOGICA DEL GIOCO
     if stato == "GIOCO":
         frame_partita += 1
         if pos_x > max_pos_x:
@@ -147,21 +150,18 @@ while True:
             pos_x -= forza_bot 
             attesa_bot = random.randint(attesa_min, attesa_max)
             
-        # Controllo condizioni di fine partita e calcolo punteggi
         if pos_x >= LARGHEZZA:
-            # Vittoria: più sei veloce, più punti accumuli
             punteggio_ottenuto = int(max(100, 1500 - frame_partita) * moltiplicatore)
             if punteggio_ottenuto > punteggi_record[difficolta_corrente]:
                 punteggi_record[difficolta_corrente] = punteggio_ottenuto
-                salva_punteggi() # Scrive subito il nuovo record sul file di testo
+                salva_punteggi() 
             stato = "FINE_VITTORIA"
             
         elif pos_x <= 0:
-            # Sconfitta: punteggio parziale basato sulla spinta massima raggiunta
             punteggio_ottenuto = int((max_pos_x / LARGHEZZA) * 300 * moltiplicatore)
             if punteggio_ottenuto > punteggi_record[difficolta_corrente]:
                 punteggi_record[difficolta_corrente] = punteggio_ottenuto
-                salva_punteggi() # Scrive subito il nuovo record sul file di testo
+                salva_punteggi() 
             stato = "FINE_SCONFITTA"
 
     # 3. DISEGNO SULLO SCHERMO
@@ -169,7 +169,6 @@ while True:
         titolo = font_grande.render("SCONTRO DI SPINTE", True, BIANCO)
         schermo.blit(titolo, (180, 80))
         
-        # Pulsanti Difficoltà Originali
         pygame.draw.rect(schermo, VERDE, (250, 200, 300, 50))
         txt_facile = font_medio.render("FACILE", True, NERO)
         schermo.blit(txt_facile, (350, 215))
@@ -182,7 +181,6 @@ while True:
         txt_pazzo = font_medio.render("PAZZO", True, NERO)
         schermo.blit(txt_pazzo, (350, 415))
         
-        # NUOVO PULSANTE: VEDI PUNTEGGI
         pygame.draw.rect(schermo, GRIGIO, (250, 490, 300, 50))
         txt_punteggi = font_medio.render("VEDI PUNTEGGI", True, BIANCO)
         schermo.blit(txt_punteggi, (300, 505))
@@ -191,7 +189,6 @@ while True:
         titolo_punteggi = font_grande.render("MIGLIORI RECORD", True, BIANCO)
         schermo.blit(titolo_punteggi, (220, 80))
         
-        # Mostra i record letti dal file / aggiornati in partita
         rec_f = font_medio.render(f"FACILE: {punteggi_record['FACILE']} PT", True, VERDE)
         schermo.blit(rec_f, (280, 200))
         
@@ -201,7 +198,6 @@ while True:
         rec_p = font_medio.render(f"PAZZO: {punteggi_record['PAZZO']} PT", True, ROSSO)
         schermo.blit(rec_p, (280, 340))
         
-        # Pulsante Torna al Menu
         pygame.draw.rect(schermo, GRIGIO, (250, 460, 300, 50))
         txt_indietro = font_medio.render("TORNA AL MENU", True, BIANCO)
         schermo.blit(txt_indietro, (295, 475))
@@ -219,16 +215,22 @@ while True:
         schermo.blit(msg, (280, 180))
         txt_punti = font_medio.render(f"Punteggio: {punteggio_ottenuto} punti", True, BIANCO)
         schermo.blit(txt_punti, (260, 260))
-        msg2 = font_piccolo.render("Premi SPAZIO per il Menu", True, BIANCO)
-        schermo.blit(msg2, (260, 360))
+        
+        # Disegno del pulsante del mouse per tornare al menu
+        pygame.draw.rect(schermo, GRIGIO, rect_torna_menu_fine)
+        txt_btn = font_medio.render("TORNA AL MENU", True, BIANCO)
+        schermo.blit(txt_btn, (rect_torna_menu_fine.x + 45, rect_torna_menu_fine.y + 12))
         
     elif stato == "FINE_SCONFITTA":
         msg = font_grande.render("HAI PERSO!", True, ROSSO)
         schermo.blit(msg, (280, 180))
         txt_punti = font_medio.render(f"Punti di consolazione: {punteggio_ottenuto}", True, BIANCO)
         schermo.blit(txt_punti, (210, 260))
-        msg2 = font_piccolo.render("Premi SPAZIO per il Menu", True, BIANCO)
-        schermo.blit(msg2, (260, 360))
+        
+        # Disegno del pulsante del mouse per tornare al menu
+        pygame.draw.rect(schermo, GRIGIO, rect_torna_menu_fine)
+        txt_btn = font_medio.render("TORNA AL MENU", True, BIANCO)
+        schermo.blit(txt_btn, (rect_torna_menu_fine.x + 45, rect_torna_menu_fine.y + 12))
 
     pygame.display.flip()
     clock.tick(60)
