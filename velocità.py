@@ -14,7 +14,7 @@ HEIGHT = info_schermo.current_h
 
 # Imposta il gioco alla risoluzione massima dello schermo
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
-pygame.display.set_caption("Mini Race - PC Screen Edition")
+pygame.display.set_caption("Mini Race - 1v1 Enhanced Edition")
 
 FPS = 60
 clock = pygame.time.Clock()
@@ -23,7 +23,7 @@ clock = pygame.time.Clock()
 # CONFIGURAZIONE TRACCIATO ADATTIVO
 # -------------------------
 TRACK_Y = HEIGHT // 3
-TRACK_HEIGHT = 150
+TRACK_HEIGHT = 120      # Allargata la pista (altezza aumentata da 80 a 120)
 FINISH_X = WIDTH - 100  # Il traguardo si adatta alla fine dello schermo del PC
 
 # Posizionamento centrato della barra dei click
@@ -45,7 +45,6 @@ GRIGIO_LUCE = (100, 100, 100)
 VERDE = (0, 200, 0)
 GIALLO = (230, 200, 0)
 ROSSO = (200, 0, 0)
-BLU = (70, 120, 255)
 
 # Font proporzionati alla risoluzione dello schermo
 font = pygame.font.Font(None, int(HEIGHT * 0.045))
@@ -56,20 +55,31 @@ big_font = pygame.font.Font(None, int(HEIGHT * 0.09))
 # -------------------------
 def reset_race():
     players = []
-    colors = [VERDE, BLU, ROSSO, GIALLO]
     
-    # Velocità iniziale rallentata di partenza
+    # Velocità iniziale di partenza uguale per tutti e due
     velocita_iniziale = 1.0  
 
-    for i in range(4):
-        players.append({
-            "x": 50,
-            "y": TRACK_Y + 15 + i * 32,
-            "speed": velocita_iniziale,
-            "color": colors[i],
-            "finished": False,
-            "place": None
-        })
+    # 1. Giocatore (Cubo Verde)
+    players.append({
+        "x": 50,
+        "y": TRACK_Y + 20,       # Posizionamento distanziato nella nuova pista allargata
+        "speed": velocita_iniziale,
+        "color": VERDE,
+        "finished": False,
+        "place": None
+    })
+
+    # 2. Avversario Bot (Cubo Rosso)
+    players.append({
+        "x": 50,
+        "y": TRACK_Y + 70,       # Posizionamento distanziato nella nuova pista allargata
+        "speed": velocita_iniziale,
+        "color": ROSSO,
+        "finished": False,
+        "place": None,
+        "prob_verde": 0.75,
+        "prob_giallo": 0.80
+    })
     return players
 
 players = reset_race()
@@ -133,18 +143,18 @@ while running:
                 player_position_text = ""
                 countdown_start = pygame.time.get_ticks()
 
-        # CLICK MOUSE
+        # CLICK MOUSE GIOCATORE
         if event.type == pygame.MOUSEBUTTONDOWN:
             if game_started and not game_over:
                 arrow_rect = pygame.Rect(arrow_x - 5, BAR_Y - 5, 10, BAR_HEIGHT + 10)
 
-                # BOOST VERDE RALLENTATO
+                # BOOST VERDE GIOCATORE (Rimane 3.2)
                 if green_zone.colliderect(arrow_rect):
                     players[0]["speed"] = 3.2  
-                # VELOCITÀ GIALLA RALLENTATA
+                # VELOCITÀ GIALLA GIOCATORE (Rimane 1.8)
                 elif yellow_zone_left.colliderect(arrow_rect) or yellow_zone_right.colliderect(arrow_rect):
                     players[0]["speed"] = 1.8
-                # ERRORE ROSSO RALLENTATO
+                # ERRORE ROSSO
                 else:
                     players[0]["speed"] = 0.3  
 
@@ -183,26 +193,34 @@ while running:
         # Trova la testa della corsa
         posizione_leader = max(p["x"] for p in players)
 
-        # LOGICA BOT
-        for i in range(1, 4):
-            if not players[i]["finished"]:
-                velocita_base = 1.3
-                
-                # Sistema di rimonta intelligente
-                distacco = posizione_leader - players[i]["x"]
-                if distacco > 50:
-                    accellerazione_rimonta = min(1.4, distacco * 0.003)
-                    velocita_base += accellerazione_rimonta
-                
-                # Micro-scatti casuali
-                r = random.random()
-                if r < 0.015:
-                    velocita_base += 0.8  
-                elif r < 0.025:
-                    velocita_base -= 0.3  
+        # Rettangolo della freccia per il calcolo della posizione rispetto alle zone
+        arrow_rect = pygame.Rect(arrow_x - 5, BAR_Y - 5, 10, BAR_HEIGHT + 10)
 
-                players[i]["speed"] = velocita_base
-                players[i]["x"] += players[i]["speed"]
+        # LOGICA BOT ROSSO (Velocità potenziata rispetto al giocatore)
+        if not players[1]["finished"]:
+            
+            # Calcoliamo il distacco per la rimonta intelligente
+            distacco = posizione_leader - players[1]["x"]
+            
+            # Bonus riflessi se il bot è dietro (può aggiungere fino a +20% di chance)
+            bonus_riflessi = 0.0
+            if distacco > 50:
+                bonus_riflessi = min(0.20, distacco * 0.001)
+
+            r = random.random()
+
+            # 1. SE LA FRECCIA È SUL VERDE: il bot ottiene un super aumento di velocità (4.2 invece di 3.2)
+            if green_zone.colliderect(arrow_rect):
+                if r < (players[1]["prob_verde"] + bonus_riflessi):
+                    players[1]["speed"] = 4.2  
+
+            # 2. SE LA FRECCIA È SUL GIALLO: il bot ottiene un aumento maggiore (2.3 invece di 1.8)
+            elif yellow_zone_left.colliderect(arrow_rect) or yellow_zone_right.colliderect(arrow_rect):
+                if r < (players[1]["prob_giallo"] + bonus_riflessi):
+                    players[1]["speed"] = 2.3  
+
+            # Aggiornamento movimento continuo del bot rosso
+            players[1]["x"] += players[1]["speed"]
 
         # LOGICA GIOCATORE
         if not players[0]["finished"]:
@@ -218,28 +236,24 @@ while running:
                 if i == 0:
                     pos = p["place"]
                     if pos == 1:
-                        player_position_text = "SEI ARRIVATO 1°!"
-                    elif pos == 2:
-                        player_position_text = "SEI ARRIVATO 2°!"
-                    elif pos == 3:
-                        player_position_text = "SEI ARRIVATO 3°!"
+                        player_position_text = "SEI ARRIVATO 1°! HAI VINTO!"
                     else:
-                        player_position_text = "SEI ARRIVATO 4°!"
+                        player_position_text = "SEI ARRIVATO 2°! HAI PERSO!"
 
-        if len(finish_order) == 4:
+        if len(finish_order) == 2:  
             game_over = True
 
     # -------------------------
     # RENDERING GRAFICO
     # -------------------------
     
-    # Pista
+    # Nuova pista allargata
     pygame.draw.rect(screen, GRIGIO_SCURO, (40, TRACK_Y, FINISH_X - 20, TRACK_HEIGHT))
 
     # Linea del Traguardo
     pygame.draw.line(screen, BIANCO, (FINISH_X, TRACK_Y), (FINISH_X, TRACK_Y + TRACK_HEIGHT), 6)
 
-    # Disegno Quadratini Personaggi
+    # Disegno Quadratini Personaggi (Verde e Rosso)
     for p in players:
         pygame.draw.rect(screen, p["color"], (p["x"], p["y"], 24, 24))  
 
@@ -249,20 +263,19 @@ while running:
     pygame.draw.rect(screen, GIALLO, yellow_zone_right)
     pygame.draw.rect(screen, VERDE, green_zone)
 
-    # NUOVA FRECCIA INVERTITA (Punta verso il basso)
-    # Coordinate invertite: la punta si trova ora esattamente a BAR_Y (bordo superiore della barra)
+    # Freccia invertita (Punta verso il basso)
     pygame.draw.polygon(
         screen,
         BIANCO,
         [
-            (arrow_x, BAR_Y),        # Punta della freccia (in basso, tocca la barra)
-            (arrow_x - 10, BAR_Y - 15), # Angolo in alto a sinistra
-            (arrow_x + 10, BAR_Y - 15)  # Angolo in alto a destra
+            (arrow_x, BAR_Y),        
+            (arrow_x - 10, BAR_Y - 15), 
+            (arrow_x + 10, BAR_Y - 15)  
         ]
     )
 
     # Scritte informative di gioco
-    info = font.render("Clicca quando la freccia è nel VERDE! (ESC per uscire)", True, BIANCO)
+    info = font.render("Sfida 1v1! Clicca quando la freccia è nel VERDE! (ESC per uscire)", True, BIANCO)
     screen.blit(info, (WIDTH // 2 - info.get_width() // 2, BAR_Y + 50))
 
     if player_position_text != "":
